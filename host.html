@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>War Game · 진행자(Host) 대시보드</title>
+  <title>War Game · 진행자 대시보드 (1~7조 · A~H)</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="/socket.io/socket.io.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -13,142 +13,259 @@
   </style>
 </head>
 <body class="min-h-screen p-4 sm:p-6">
-  <div class="max-w-5xl mx-auto space-y-5">
-    <!-- Top Host Header -->
+  <div class="max-w-6xl mx-auto space-y-5">
+    <!-- Top Header -->
     <header class="card p-5 flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h1 class="text-xl font-extrabold text-stone-900">⚔️ 전쟁 게임 진행자 대시보드 (Host)</h1>
-        <p class="text-xs text-stone-500 mt-0.5">참가자 접속 링크: <code id="joinUrl" class="px-2 py-0.5 bg-stone-100 rounded font-bold text-blue-700"></code></p>
+        <h1 class="text-xl font-extrabold text-stone-900">⚔️ 전쟁 게임 진행자 대시보드 (1~7조 · 각 조 A~H)</h1>
+        <p class="text-xs text-stone-500 mt-0.5">학생 접속 링크(QR): <code id="joinUrl" class="px-2 py-0.5 bg-stone-100 rounded font-bold text-blue-700"></code></p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <span id="roomBadge" class="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 font-mono font-extrabold text-sm text-blue-800">ROOM: TEAM06</span>
-        <button id="btnNewRoom" type="button" class="px-3.5 py-2 rounded-xl bg-white border border-stone-300 hover:bg-stone-50 text-xs font-bold">+ 새 방 만들기</button>
-        <button id="btnResetRoom" type="button" class="px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-300 hover:bg-rose-100 text-rose-700 text-xs font-bold">🔄 현재 방 초기화</button>
-        <a id="btnExportCsv" href="/api/rooms/TEAM06/export.csv" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">📥 CSV 결과 다운로드</a>
+        <button id="btnResetAll" type="button" class="px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-300 hover:bg-rose-100 text-rose-700 text-xs font-bold">🔄 전체 7조 초기화</button>
+        <a href="/api/export.csv" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">📥 전체 7조 통합 CSV 다운로드</a>
       </div>
     </header>
 
-    <!-- Round Controls -->
+    <!-- Unified Round Controls -->
     <section class="card p-5 space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="font-extrabold text-sm text-stone-800">라운드 진행 제어</h2>
-        <span id="phaseBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900">대기 중 (lobby)</span>
+        <h2 class="font-extrabold text-sm text-stone-800">전체 7개 조 동시 라운드 제어</h2>
+        <span id="phaseBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900">상태: lobby</span>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button id="btnStart1" type="button" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">1라운드 시작 (토의 불가)</button>
-        <button id="btnStart2" type="button" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">2라운드 시작 (토의 불가)</button>
-        <button id="btnStart3" type="button" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold">3라운드 시작 (자유 토의)</button>
-        <button id="btnSettle" type="button" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold">🔒 현재 라운드 마감 및 정산</button>
-        <button id="btnFinal" type="button" class="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold">🏁 최종 순위 공개</button>
+        <button id="btnStart1" type="button" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">1라운드 시작 (토의 불가 · 1.5분)</button>
+        <button id="btnStart2" type="button" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">2라운드 시작 (토의 불가 · 1.5분)</button>
+        <button id="btnStart3" type="button" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold">3라운드 시작 (조별 자유 토의 · 3분)</button>
+        <button id="btnSettle" type="button" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold">🔒 현재 라운드 마감 및 7조 일괄 정산</button>
+        <button id="btnFinal" type="button" class="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold">🏁 전체 최종 결과 공개</button>
       </div>
     </section>
 
-    <!-- 8 Teams Live Status Grid -->
-    <section class="card p-5 space-y-3">
-      <h2 class="font-extrabold text-sm text-stone-800">8개 조 실시간 접속 및 제출 현황</h2>
-      <div id="teamsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
-    </section>
+    <!-- Group Navigation Tabs (All vs 1조~7조 Drill-down) -->
+    <nav id="groupTabs" class="flex flex-wrap gap-2"></nav>
 
-    <!-- Round Results Table -->
-    <section class="card p-5 space-y-3">
-      <h2 class="font-extrabold text-sm text-stone-800">라운드별 집계 결과</h2>
-      <div id="resultsSummary" class="space-y-3 text-xs text-stone-700">아직 정산된 라운드가 없습니다.</div>
-    </section>
+    <!-- VIEW A: ALL 7 GROUPS OVERVIEW -->
+    <div id="viewOverview" class="space-y-5">
+      <section class="space-y-2.5">
+        <p class="text-xs font-semibold text-stone-500 px-1">👇 원하는 조 카드를 클릭하면 해당 조 내부의 A~H 게임 현황과 3라운드 채팅을 자세히 볼 수 있습니다.</p>
+        <div id="groupsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5"></div>
+      </section>
 
-    <!-- Saved Past Sessions -->
-    <section class="card p-5 space-y-3">
-      <div class="flex items-center justify-between">
-        <h2 class="font-extrabold text-sm text-stone-800">📚 저장된 이전 게임 결과 (나중에 다시 보기)</h2>
-        <button id="btnRefreshHistory" type="button" class="text-xs font-bold text-blue-600 hover:underline">새로고침</button>
+      <section class="card p-5 space-y-3">
+        <h2 class="font-extrabold text-sm text-stone-800">📊 7개 조(표본) 라운드별 W_total 및 전세 단계 비교</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="border-b-2 border-stone-200 text-stone-500 font-bold">
+                <th class="py-2 px-2">조 (표본)</th>
+                <th class="py-2 px-2">1라운드 (W_total / 전세)</th>
+                <th class="py-2 px-2">2라운드 (W_total / 전세)</th>
+                <th class="py-2 px-2">3라운드 (W_total / 전세)</th>
+              </tr>
+            </thead>
+            <tbody id="samplesTableBody" class="divide-y divide-stone-100"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- VIEW B: SINGLE GROUP DRILL-DOWN (A~H Live Game View) -->
+    <div id="viewGroupDetail" class="hidden space-y-5">
+      <div class="card p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-3">
+          <div>
+            <h2 id="detailTitle" class="text-lg font-extrabold text-stone-900">1조 내부 게임 현황 (A~H)</h2>
+            <p id="detailSub" class="text-xs text-stone-500 mt-0.5"></p>
+          </div>
+          <button id="btnBackOverview" type="button" class="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold">← 전체 7조 보기로 돌아가기</button>
+        </div>
+
+        <!-- A~H 8-Seat Live Status Cards -->
+        <div id="detailSeatsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5"></div>
       </div>
-      <div id="historyList" class="space-y-2 text-xs text-stone-600">불러오는 중...</div>
-    </section>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Left: Round-by-Round A~H Payoff Table -->
+        <div class="lg:col-span-7 card p-5 space-y-3">
+          <h3 class="font-extrabold text-sm text-stone-800">📋 A~H 라운드별 무기(W) 및 최종 소비재(Cᵢ) 상세</h3>
+          <div id="detailRoundsTable" class="overflow-x-auto text-xs"></div>
+        </div>
+
+        <!-- Right: Per-Group Round 3 Live Negotiation Chat Monitor -->
+        <div class="lg:col-span-5 card p-5 space-y-3">
+          <h3 class="font-extrabold text-sm text-stone-800">💬 이 조의 3라운드 자유 토의 채팅</h3>
+          <div id="detailChatBox" class="h-64 overflow-y-auto bg-stone-50 rounded-xl p-3 space-y-2 border border-stone-200 text-xs"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script>
     const socket = io();
-    let currentRoomId = 'TEAM06';
+    const GOV_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const govCode = (id) => GOV_CODES[id - 1] || String(id);
     const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    function connectRoom(roomId) {
-      currentRoomId = roomId.toUpperCase();
-      $('roomBadge').textContent = `ROOM: ${currentRoomId}`;
-      $('joinUrl').textContent = `${location.origin}/r/${currentRoomId}`;
-      $('btnExportCsv').href = `/api/rooms/${currentRoomId}/export.csv`;
-      socket.emit('host:join', { roomId: currentRoomId });
+    let latestState = null;
+    let selectedGroupId = null; // null => All 7 Groups Overview, 1..7 => Group Detail
+
+    $('joinUrl').textContent = `${location.origin}/r/TEAM06`;
+
+    function selectGroup(gId) {
+      selectedGroupId = gId;
+      render();
     }
 
-    async function loadHistory() {
-      try {
-        const res = await fetch('/api/history');
-        const list = await res.json();
-        if (!list.length) {
-          $('historyList').textContent = '아직 완료되어 저장된 게임 기록이 없습니다.';
-          return;
-        }
-        $('historyList').innerHTML = list.map((h) => `
-          <div class="p-3 rounded-xl border border-stone-200 flex flex-wrap items-center justify-between gap-2 bg-stone-50">
-            <div>
-              <span class="font-mono font-extrabold text-stone-900">${h.roomId}</span>
-              <span class="text-stone-500 ml-2">${new Date(h.completedAt).toLocaleString('ko-KR')}</span>
-              <span class="ml-2 text-blue-700 font-bold">${h.roundsHistory.length}라운드 완료</span>
-            </div>
-            <a href="/api/rooms/${h.roomId}/export.csv" class="px-3 py-1 rounded-lg bg-white border border-stone-300 font-bold text-stone-700 hover:bg-stone-100">CSV 다운로드</a>
-          </div>
-        `).join('');
-      } catch (e) {
-        $('historyList').textContent = '기록을 불러오지 못했습니다.';
-      }
+    function renderTabs() {
+      const tabs = [{ id: null, label: '전체 7조 보기' }, ...Array.from({ length: 7 }, (_, i) => ({ id: i + 1, label: `${i + 1}조` }))];
+      $('groupTabs').innerHTML = tabs.map((t) => {
+        const active = selectedGroupId === t.id;
+        return `<button type="button" data-tab="${t.id === null ? 'all' : t.id}" class="tab-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition ${active ? 'bg-stone-900 text-white border-stone-900' : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'}">${t.label}</button>`;
+      }).join('');
+      $('groupTabs').querySelectorAll('.tab-btn').forEach((b) => {
+        b.addEventListener('click', () => selectGroup(b.dataset.tab === 'all' ? null : Number(b.dataset.tab)));
+      });
     }
 
-    socket.on('room:state', (room) => {
-      $('phaseBadge').textContent = `상태: ${room.phase}`;
-      $('teamsGrid').innerHTML = room.teams.map((t) => `
-        <div class="p-3.5 rounded-xl border ${t.submitted ? 'border-emerald-400 bg-emerald-50/50' : 'border-stone-200 bg-stone-50'}">
-          <div class="flex items-center justify-between">
-            <span class="font-extrabold text-sm">${t.teamId}조</span>
-            <span class="text-[11px] font-bold ${t.submitted ? 'text-emerald-700' : 'text-stone-400'}">${t.submitted ? '✅ 제출 완료' : '대기'}</span>
-          </div>
-          <div class="text-[11px] text-stone-600 mt-1.5 space-y-0.5">
-            ${t.members.length ? t.members.map(m => `<div>${m.isLeader ? '👑 ' : ''}${m.name} (${m.studentId})</div>`).join('') : '<div class="text-stone-400">접속자 없음</div>'}
-          </div>
-        </div>
-      `).join('');
+    function render() {
+      renderTabs();
+      if (!latestState) return;
+      const st = latestState;
+      $('phaseBadge').textContent = `상태: ${st.phase}`;
 
-      if (room.roundsHistory.length) {
-        $('resultsSummary').innerHTML = room.roundsHistory.map((r) => `
-          <div class="p-3.5 rounded-xl border border-stone-200 bg-stone-50 space-y-2">
-            <div class="font-extrabold text-stone-900">Round ${r.round} · ${r.stage.ko} (W_total = ${r.wTotal}, 손실률 γ = ${Math.round(r.stage.gamma*100)}%)</div>
-            <div class="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-center font-mono">
-              ${r.details.map(d => d.absent ? `<div class="p-1.5 rounded bg-stone-100 border border-stone-200 text-stone-400"><div class="font-bold">${d.teamId}조</div><div>미참여</div></div>` : `<div class="p-1.5 rounded bg-white border border-stone-200"><div class="font-bold text-stone-500">${d.teamId}조</div><div class="text-rose-600">W:${d.w}</div><div class="text-blue-700 font-bold">${d.finalC.toFixed(0)}</div></div>`).join('')}
+      $('viewOverview').classList.toggle('hidden', selectedGroupId !== null);
+      $('viewGroupDetail').classList.toggle('hidden', selectedGroupId === null);
+
+      if (selectedGroupId === null) {
+        $('groupsGrid').innerHTML = st.groups.map((g) => `
+          <button type="button" data-open-group="${g.groupId}" class="open-group-card text-left card p-4 space-y-2.5 hover:border-blue-400 hover:shadow-md transition cursor-pointer">
+            <div class="flex items-center justify-between border-b border-stone-100 pb-2">
+              <span class="font-extrabold text-sm text-stone-900">${g.groupId}조 <span class="text-xs font-semibold text-blue-600">자세히 →</span></span>
+              <span class="text-[11px] font-bold px-2 py-0.5 rounded-full ${g.playerCount > 0 ? 'bg-blue-50 text-blue-700' : 'bg-stone-100 text-stone-400'}">${g.playerCount}/8명 · 제출 ${g.submittedCount}</span>
             </div>
-          </div>
+            <div class="space-y-1 text-[11px]">
+              ${g.seats.map((s) => `
+                <div class="flex items-center justify-between px-2 py-1 rounded ${s.occupied ? (s.submitted ? 'bg-emerald-50 text-emerald-900' : 'bg-stone-50 text-stone-800') : 'text-stone-400'}">
+                  <span class="truncate"><strong>${govCode(s.govId)}</strong> ${s.occupied ? `${esc(s.name)} (${esc(s.studentId)})` : '빈 자리'}</span>
+                  <span>${s.submitted ? '✅' : (s.occupied ? '⏳' : '—')}</span>
+                </div>
+              `).join('')}
+            </div>
+          </button>
         `).join('');
+
+        $('groupsGrid').querySelectorAll('.open-group-card').forEach((card) => {
+          card.addEventListener('click', () => selectGroup(Number(card.dataset.openGroup)));
+        });
+
+        const fmtRound = (g, rNum) => {
+          const r = g.roundsHistory.find((x) => x.round === rNum);
+          if (!r) return '<span class="text-stone-400">—</span>';
+          if (r.activeCount === 0) return '<span class="text-stone-400">미참여 (0명)</span>';
+          return `<strong class="font-mono text-stone-900">W=${r.wTotal}</strong> <span class="text-stone-500">(${r.activeCount}명)</span> · <span class="font-bold text-blue-700">${r.stage.ko.split(' (')[0]}</span>`;
+        };
+        $('samplesTableBody').innerHTML = st.groups.map((g) => `
+          <tr class="hover:bg-stone-50 cursor-pointer" data-row-group="${g.groupId}">
+            <td class="py-2.5 px-2 font-extrabold text-blue-700 underline">${g.groupId}조</td>
+            <td class="py-2.5 px-2">${fmtRound(g, 1)}</td>
+            <td class="py-2.5 px-2">${fmtRound(g, 2)}</td>
+            <td class="py-2.5 px-2">${fmtRound(g, 3)}</td>
+          </tr>
+        `).join('');
+        $('samplesTableBody').querySelectorAll('tr').forEach((tr) => {
+          tr.addEventListener('click', () => selectGroup(Number(tr.dataset.rowGroup)));
+        });
       } else {
-        $('resultsSummary').textContent = '아직 정산된 라운드가 없습니다.';
+        const g = st.groups[selectedGroupId - 1];
+        if (!g) return;
+        $('detailTitle').textContent = `${g.groupId}조 내부 게임 현황 (A~H)`;
+        $('detailSub').textContent = `접속 ${g.playerCount}/8명 · 현재 라운드 제출 ${g.submittedCount}명`;
+
+        $('detailSeatsGrid').innerHTML = g.seats.map((s) => `
+          <div class="p-3 rounded-xl border ${s.occupied ? (s.submitted ? 'border-emerald-400 bg-emerald-50/70' : 'border-blue-200 bg-blue-50/40') : 'border-stone-200 bg-stone-50 text-stone-400'}">
+            <div class="flex items-center justify-between">
+              <span class="font-extrabold text-sm">정부 ${govCode(s.govId)}</span>
+              <span class="text-[11px] font-bold">${s.submitted ? '✅ 제출' : (s.occupied ? '⏳ 대기' : '빈 자리')}</span>
+            </div>
+            <div class="text-xs font-semibold mt-1 truncate">${s.occupied ? `${esc(s.name)} (${esc(s.studentId)})` : '미접속'}</div>
+          </div>
+        `).join('');
+
+        // Per-round A~H table
+        const r1 = g.roundsHistory.find((x) => x.round === 1);
+        const r2 = g.roundsHistory.find((x) => x.round === 2);
+        const r3 = g.roundsHistory.find((x) => x.round === 3);
+        const fmtCell = (r, idx) => {
+          if (!r) return '<span class="text-stone-400">—</span>';
+          const d = r.details[idx];
+          if (!d || d.absent) return '<span class="text-stone-400">미제출</span>';
+          return `<span class="text-rose-600 font-bold">W:${d.w}</span> / <span class="text-blue-700 font-bold">${d.finalC.toFixed(0)}</span>`;
+        };
+        $('detailRoundsTable').innerHTML = `
+          <div class="mb-2 flex flex-wrap gap-2 text-[11px]">
+            ${[r1, r2, r3].map((r, idx) => r ? `<span class="px-2.5 py-1 rounded-lg bg-stone-100 font-bold">R${idx+1}: W=${r.wTotal} (${r.stage.ko.split(' (')[0]})</span>` : '').join('')}
+          </div>
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b-2 border-stone-200 text-stone-500 font-bold">
+                <th class="py-2 px-2">정부</th>
+                <th class="py-2 px-2">이름 (학번)</th>
+                <th class="py-2 px-2 text-right">1R (W / Cᵢ)</th>
+                <th class="py-2 px-2 text-right">2R (W / Cᵢ)</th>
+                <th class="py-2 px-2 text-right">3R (W / Cᵢ)</th>
+                <th class="py-2 px-2 text-right">누적 Cᵢ</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100">
+              ${g.seats.map((s, idx) => {
+                const sum = [r1, r2, r3].reduce((acc, r) => acc + (r && r.details[idx] && !r.details[idx].absent ? r.details[idx].finalC : 0), 0);
+                const any = [r1, r2, r3].some((r) => r && r.details[idx] && !r.details[idx].absent);
+                return `
+                  <tr class="${s.occupied || any ? '' : 'text-stone-400'}">
+                    <td class="py-2 px-2 font-extrabold">${govCode(s.govId)}</td>
+                    <td class="py-2 px-2">${s.occupied ? `${esc(s.name)} (${esc(s.studentId)})` : '빈 자리'}</td>
+                    <td class="py-2 px-2 text-right font-mono">${fmtCell(r1, idx)}</td>
+                    <td class="py-2 px-2 text-right font-mono">${fmtCell(r2, idx)}</td>
+                    <td class="py-2 px-2 text-right font-mono">${fmtCell(r3, idx)}</td>
+                    <td class="py-2 px-2 text-right font-mono font-extrabold text-blue-700">${any ? sum.toFixed(1) : '—'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `;
+
+        // Live Round 3 Chat for this group
+        if (!g.chat || !g.chat.length) {
+          $('detailChatBox').innerHTML = '<div class="text-stone-400 text-center py-10">아직 이 조의 3라운드 채팅 기록이 없습니다.</div>';
+        } else {
+          $('detailChatBox').innerHTML = g.chat.map((m) => `
+            <div class="p-2 rounded-xl bg-white border border-stone-200">
+              <div class="text-[10px] font-extrabold text-blue-700">정부 ${govCode(m.govId)} · ${esc(m.name)}</div>
+              <div class="text-stone-800 mt-0.5">${esc(m.text)}</div>
+            </div>
+          `).join('');
+          $('detailChatBox').scrollTop = $('detailChatBox').scrollHeight;
+        }
       }
-      loadHistory();
+    }
+
+    socket.on('host:state', (st) => { latestState = st; render(); });
+    $('btnBackOverview').addEventListener('click', () => selectGroup(null));
+    $('btnStart1').addEventListener('click', () => socket.emit('host:startRound', { roundNum: 1 }));
+    $('btnStart2').addEventListener('click', () => socket.emit('host:startRound', { roundNum: 2 }));
+    $('btnStart3').addEventListener('click', () => socket.emit('host:startRound', { roundNum: 3 }));
+    $('btnSettle').addEventListener('click', () => socket.emit('host:settleRound'));
+    $('btnFinal').addEventListener('click', () => socket.emit('host:showFinal'));
+    $('btnResetAll').addEventListener('click', () => {
+      if (confirm('전체 7개 조의 모든 라운드 기록과 제출 내용을 초기화할까요?')) {
+        socket.emit('host:resetAll');
+      }
     });
 
-    $('btnNewRoom').addEventListener('click', async () => {
-      const res = await fetch('/api/rooms', { method: 'POST' });
-      const data = await res.json();
-      connectRoom(data.roomId);
-    });
-    $('btnStart1').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 1 }));
-    $('btnStart2').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 2 }));
-    $('btnStart3').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 3 }));
-    $('btnSettle').addEventListener('click', () => socket.emit('host:settleRound', { roomId: currentRoomId }));
-    $('btnFinal').addEventListener('click', () => socket.emit('host:showFinal', { roomId: currentRoomId }));
-    $('btnResetRoom').addEventListener('click', () => {
-      if (confirm(`정말 [${currentRoomId}] 방의 모든 라운드 기록과 제출 내용을 초기화할까요?`)) {
-        socket.emit('host:resetRoom', { roomId: currentRoomId });
-      }
-    });
-    $('btnRefreshHistory').addEventListener('click', loadHistory);
-
-    connectRoom('TEAM06');
-    loadHistory();
+    socket.emit('host:join');
   </script>
 </body>
 </html>

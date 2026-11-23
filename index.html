@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>War Game · 실시간 참가자 화면</title>
+  <title>War Game · 참가자 화면 (1~7조 · A~H)</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="/socket.io/socket.io.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -14,8 +14,8 @@
 </head>
 <body class="min-h-screen flex flex-col">
   <header class="sticky top-0 z-20 bg-[#FAF8F5]/90 backdrop-blur border-b border-stone-200">
-    <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-      <div class="font-extrabold text-stone-900 flex items-center gap-2">
+    <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+      <div class="font-extrabold text-stone-900 flex items-center gap-2 text-sm sm:text-base">
         <span>⚔️</span>
         <span id="navTitle">War Game · 전쟁 게임</span>
       </div>
@@ -32,19 +32,15 @@
       <div class="text-center">
         <div class="text-3xl mb-2">⚔️</div>
         <h1 class="text-xl font-extrabold">War Game Simulation</h1>
-        <p class="text-xs text-stone-500 mt-1">언어를 선택해 주세요 / Choose Language</p>
+        <p class="text-xs text-stone-500 mt-1">7개 조 · 각 조 A~H 8명 · 3라운드 / 7 Groups · A–H Each</p>
       </div>
       <button id="pickKo" type="button" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold">🇰🇷 한국어로 참가하기</button>
       <button id="pickEn" type="button" class="w-full py-3 rounded-xl bg-white hover:bg-stone-50 border-2 border-stone-200 font-bold">🇺🇸 Join in English</button>
     </section>
 
-    <!-- 2. Entry Form -->
+    <!-- 2. Entry Form (Name, Student ID, Group 1-7, Gov A-H) -->
     <section id="secEntry" class="hidden max-w-md mx-auto card p-6 space-y-4">
-      <h2 id="entryHeading" class="text-lg font-extrabold text-center">실시간 게임 입장</h2>
-      <div>
-        <label id="lblRoom" class="block text-xs font-bold text-stone-600 mb-1">방 코드 (Room Code)</label>
-        <input id="inRoom" type="text" value="TEAM06" maxlength="10" class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 font-mono font-bold uppercase text-sm" />
-      </div>
+      <h2 id="entryHeading" class="text-lg font-extrabold text-center">전쟁 게임 입장</h2>
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label id="lblName" class="block text-xs font-bold text-stone-600 mb-1">이름</label>
@@ -55,10 +51,17 @@
           <input id="inSid" type="text" maxlength="20" placeholder="20241234" class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm" />
         </div>
       </div>
+
       <div>
-        <label id="lblTeam" class="block text-xs font-bold text-stone-600 mb-1.5">조 선택 (1조~8조 / 비워두면 자동 배정)</label>
-        <select id="inTeam" class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm bg-white font-semibold"></select>
+        <label id="lblGroup" class="block text-xs font-bold text-stone-600 mb-1.5">소속 조 선택 (1조~7조)</label>
+        <div id="groupButtons" class="grid grid-cols-4 gap-2"></div>
       </div>
+
+      <div>
+        <label id="lblGov" class="block text-xs font-bold text-stone-600 mb-1.5">조 내 정부 선택 (A~H / 자동 배정 추천)</label>
+        <select id="inGov" class="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm bg-white font-semibold"></select>
+      </div>
+
       <p id="errEntry" class="hidden text-xs font-bold text-red-600"></p>
       <button id="btnJoin" type="button" class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold">입장하기 →</button>
     </section>
@@ -69,8 +72,8 @@
       <div id="boxLobby" class="card p-6 text-center space-y-3">
         <div class="text-3xl">⏳</div>
         <h2 id="lobbyTitle" class="text-lg font-extrabold">진행자가 라운드를 시작할 때까지 대기 중...</h2>
-        <p id="lobbySub" class="text-xs text-stone-500">8개 조의 접속 현황이 실시간으로 업데이트됩니다.</p>
-        <div id="lobbyTeams" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-left"></div>
+        <p id="lobbySub" class="text-xs text-stone-500">같은 조에 들어온 A~H 8명이 서로 전쟁 게임을 진행합니다.</p>
+        <div id="lobbySeats" class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 text-left"></div>
       </div>
 
       <!-- Active Round Allocation -->
@@ -100,15 +103,15 @@
           <p id="submitStatus" class="hidden text-center text-xs font-bold text-emerald-700"></p>
         </div>
 
-        <!-- Round 3 Live Negotiation Chat -->
+        <!-- Round 3 Per-Group Chat -->
         <div id="boxChat" class="hidden card p-5 space-y-3 border-2 border-blue-200">
           <div class="flex items-center justify-between">
-            <h3 id="chatHeading" class="font-extrabold text-sm">💬 3라운드 자유 토의 (비구속적 협상)</h3>
+            <h3 id="chatHeading" class="font-extrabold text-sm">💬 3라운드 우리 조 자유 토의 (비구속적)</h3>
             <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Non-Binding</span>
           </div>
           <div id="chatBox" class="h-52 overflow-y-auto bg-stone-50 rounded-xl p-3 space-y-2 border border-stone-200 text-xs"></div>
           <div class="flex gap-2">
-            <input id="inChat" type="text" maxlength="160" placeholder="협상 메시지 입력..." class="flex-1 px-3 py-2 rounded-xl border border-stone-300 text-xs" />
+            <input id="inChat" type="text" maxlength="160" placeholder="같은 조 A~H에게 메시지 보내기..." class="flex-1 px-3 py-2 rounded-xl border border-stone-300 text-xs" />
             <button id="btnChatSend" type="button" class="px-4 py-2 rounded-xl bg-stone-900 text-white text-xs font-bold">전송</button>
           </div>
         </div>
@@ -127,53 +130,64 @@
 
   <script>
     const socket = io();
+    const GOV_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const govCode = (id) => GOV_CODES[id - 1] || String(id);
     let lang = 'ko';
-    let myInfo = { roomId: 'TEAM06', teamId: null, name: '', studentId: '', isLeader: false };
-    let lastRoom = null;
+    let selectedGroupId = 1;
+    let myInfo = { groupId: null, govId: null, name: '', studentId: '' };
+    let lastGroupState = null;
     let timerIv = null;
 
     const $ = (id) => document.getElementById(id);
-    const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const esc = (s) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    // Read roomId from URL /r/:roomId if present
-    const pathMatch = location.pathname.match(/^\/r\/([A-Za-z0-9_-]+)/);
-    if (pathMatch) $('inRoom').value = pathMatch[1].toUpperCase();
-
-    function populateTeamSelect() {
-      const sel = $('inTeam');
+    function renderGroupButtons() {
       const ko = lang === 'ko';
-      sel.innerHTML = `<option value="">${ko ? '자동 배정 (인원 적은 조)' : 'Auto-assign (least populated team)'}</option>` +
-        Array.from({ length: 8 }, (_, i) => `<option value="${i + 1}">${ko ? `${i + 1}조 (정부 #${i + 1})` : `Team ${i + 1} (Gov #${i + 1})`}</option>`).join('');
+      $('groupButtons').innerHTML = Array.from({ length: 7 }, (_, i) => {
+        const id = i + 1;
+        const active = selectedGroupId === id;
+        return `<button type="button" data-gid="${id}" class="g-btn py-2.5 rounded-xl border-2 text-xs font-extrabold transition ${active ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'}">${ko ? `${id}조` : `Group ${id}`}</button>`;
+      }).join('');
+      $('groupButtons').querySelectorAll('.g-btn').forEach((b) => {
+        b.addEventListener('click', () => { selectedGroupId = Number(b.dataset.gid); renderGroupButtons(); });
+      });
+    }
+
+    function populateGovSelect() {
+      const ko = lang === 'ko';
+      $('inGov').innerHTML = `<option value="">${ko ? '빈 자리(A~H) 자동 배정 (추천)' : 'Auto-assign A–H (Recommended)'}</option>` +
+        GOV_CODES.map((c, i) => `<option value="${i + 1}">${ko ? `정부 ${c}` : `Government ${c}`}</option>`).join('');
     }
 
     function applyLang() {
       const ko = lang === 'ko';
       $('btnLang').textContent = ko ? '🇺🇸 EN' : '🇰🇷 KR';
       $('navTitle').textContent = ko ? 'War Game · 전쟁 게임' : 'War Game Simulation';
-      $('entryHeading').textContent = ko ? '실시간 게임 입장' : 'Join Live Game';
-      $('lblRoom').textContent = ko ? '방 코드 (Room Code)' : 'Room Code';
+      $('entryHeading').textContent = ko ? '전쟁 게임 입장' : 'Join War Game';
       $('lblName').textContent = ko ? '이름' : 'Name';
       $('lblSid').textContent = ko ? '학번' : 'Student ID';
-      $('lblTeam').textContent = ko ? '조 선택 (1조~8조 / 비워두면 자동 배정)' : 'Select Team (Team 1–8 / blank = auto)';
-      $('btnJoin').textContent = ko ? '입장하기 →' : 'Join Room →';
+      $('lblGroup').textContent = ko ? '소속 조 선택 (1조~7조)' : 'Select Group (Group 1–7)';
+      $('lblGov').textContent = ko ? '조 내 정부 선택 (A~H / 자동 배정 추천)' : 'Select Government (A–H / Auto recommended)';
+      $('btnJoin').textContent = ko ? '입장하기 →' : 'Join Group →';
       $('lobbyTitle').textContent = ko ? '진행자가 라운드를 시작할 때까지 대기 중...' : 'Waiting for host to start the round...';
-      $('lobbySub').textContent = ko ? '8개 조의 접속 현황이 실시간으로 업데이트됩니다.' : 'Live roster across all 8 teams.';
+      $('lobbySub').textContent = ko ? '같은 조에 들어온 A~H 8명이 서로 전쟁 게임을 진행합니다.' : 'Governments A–H inside your group compete in an independent War Game.';
       $('lblWeaponInput').textContent = ko ? '무기 생산량 (Wᵢ)' : 'Weapons Input (Wᵢ)';
       $('btnSubmitW').textContent = ko ? '비밀 배분 제출하기' : 'Submit Secret Allocation';
-      $('chatHeading').textContent = ko ? '💬 3라운드 자유 토의 (비구속적 협상)' : '💬 Round 3 Open Discussion (Non-Binding)';
-      $('inChat').placeholder = ko ? '협상 메시지 입력...' : 'Type a negotiation message...';
+      $('chatHeading').textContent = ko ? '💬 3라운드 우리 조 자유 토의 (비구속적)' : '💬 Round 3 Group Discussion (Non-Binding)';
+      $('inChat').placeholder = ko ? '같은 조 A~H에게 메시지 보내기...' : 'Message A–H in your group...';
       $('btnChatSend').textContent = ko ? '전송' : 'Send';
-      populateTeamSelect();
-      if (lastRoom) renderRoom(lastRoom);
+      renderGroupButtons();
+      populateGovSelect();
+      if (myInfo.groupId) {
+        $('myBadge').textContent = ko ? `${myInfo.groupId}조 · ${govCode(myInfo.govId)} (${myInfo.name})` : `G${myInfo.groupId} · Gov ${govCode(myInfo.govId)} (${myInfo.name})`;
+      }
+      if (lastGroupState) renderGroupState(lastGroupState);
     }
 
     function syncW(val) {
       const w = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
-      $('slW').value = w;
-      $('inW').value = w;
-      $('outW').textContent = w;
-      $('outK').textContent = 100 - w;
-      $('outC').textContent = ((100 - w) * 10).toLocaleString();
+      $('slW').value = w; $('inW').value = w;
+      $('outW').textContent = w; $('outK').textContent = 100 - w; $('outC').textContent = ((100 - w) * 10).toLocaleString();
     }
 
     function updateTimer(endAt) {
@@ -187,41 +201,41 @@
       timerIv = setInterval(tick, 1000);
     }
 
-    function renderRoom(room) {
-      lastRoom = room;
+    function renderGroupState(g) {
+      lastGroupState = g;
       const ko = lang === 'ko';
-      $('boxLobby').classList.toggle('hidden', room.phase !== 'lobby');
-      const isRound = ['round1', 'round2', 'round3'].includes(room.phase);
-      const isResult = ['result1', 'result2', 'result3', 'final'].includes(room.phase);
+      $('boxLobby').classList.toggle('hidden', g.phase !== 'lobby');
+      const isRound = ['round1', 'round2', 'round3'].includes(g.phase);
+      const isResult = ['result1', 'result2', 'result3', 'final'].includes(g.phase);
       $('boxRound').classList.toggle('hidden', !isRound);
       $('boxResult').classList.toggle('hidden', !isResult);
 
-      if (room.phase === 'lobby') {
-        $('lobbyTeams').innerHTML = room.teams.map((t) => `
-          <div class="p-2.5 rounded-xl border ${t.teamId === myInfo.teamId ? 'border-blue-500 bg-blue-50' : 'border-stone-200 bg-stone-50'}">
-            <div class="font-extrabold text-xs">${ko ? `${t.teamId}조` : `Team ${t.teamId}`} (${t.memberCount})</div>
-            <div class="text-[11px] text-stone-500 truncate mt-0.5">${t.members.map(m => esc(m.name)).join(', ') || (ko ? '대기 중' : 'Empty')}</div>
+      if (g.phase === 'lobby') {
+        $('lobbySeats').innerHTML = g.seats.map((s) => `
+          <div class="p-2.5 rounded-xl border ${s.govId === myInfo.govId ? 'border-blue-500 bg-blue-50' : (s.occupied ? 'border-stone-300 bg-white' : 'border-stone-200 bg-stone-50 text-stone-400')}">
+            <div class="font-extrabold text-xs">${ko ? `정부 ${govCode(s.govId)}` : `Gov ${govCode(s.govId)}`}</div>
+            <div class="text-[11px] truncate mt-0.5">${s.occupied ? esc(s.name) : (ko ? '빈 자리' : 'Empty')}</div>
           </div>
         `).join('');
       }
 
       if (isRound) {
-        const r = room.currentRound;
-        $('liveRoundTitle').textContent = ko ? `라운드 ${r}${r === 3 ? ' (자유 토의)' : ' (토의 불가)'}` : `Round ${r}${r === 3 ? ' (Open Discussion)' : ' (No Discussion)'}`;
-        updateTimer(room.timerEndAt);
-        const myTeam = room.teams[myInfo.teamId - 1];
-        if (myTeam && myTeam.submitted) {
+        const r = g.currentRound;
+        $('liveRoundTitle').textContent = ko ? `${g.groupId}조 (${govCode(myInfo.govId)}) · 라운드 ${r}${r === 3 ? ' (자유 토의)' : ' (토의 불가)'}` : `Group ${g.groupId} (Gov ${govCode(myInfo.govId)}) · Round ${r}`;
+        updateTimer(g.timerEndAt);
+        const mySeat = g.seats[myInfo.govId - 1];
+        if (mySeat && mySeat.submitted) {
           $('submitStatus').classList.remove('hidden');
-          $('submitStatus').textContent = ko ? '✅ 우리 조 배분이 제출되었습니다! (마감 전 수정 가능)' : '✅ Your team submitted! (You can still update before lock)';
+          $('submitStatus').textContent = ko ? '✅ 제출 완료! (마감 전 수정 가능)' : '✅ Submitted! (Can update before lock)';
         } else {
           $('submitStatus').classList.add('hidden');
         }
         $('boxChat').classList.toggle('hidden', r !== 3);
         if (r === 3) {
-          $('chatBox').innerHTML = room.chat.map((m) => `
-            <div class="${m.teamId === myInfo.teamId ? 'text-right' : 'text-left'}">
-              <span class="text-[10px] font-bold text-stone-500">${ko ? `${m.teamId}조` : `Team ${m.teamId}`} · ${esc(m.name)}</span>
-              <div class="inline-block px-3 py-1.5 rounded-xl mt-0.5 ${m.teamId === myInfo.teamId ? 'bg-blue-600 text-white' : 'bg-white border border-stone-200'}">${esc(m.text)}</div>
+          $('chatBox').innerHTML = g.chat.map((m) => `
+            <div class="${m.govId === myInfo.govId ? 'text-right' : 'text-left'}">
+              <span class="text-[10px] font-bold text-stone-500">${ko ? `정부 ${govCode(m.govId)}` : `Gov ${govCode(m.govId)}`} · ${esc(m.name)}</span>
+              <div class="inline-block px-3 py-1.5 rounded-xl mt-0.5 ${m.govId === myInfo.govId ? 'bg-blue-600 text-white' : 'bg-white border border-stone-200'}">${esc(m.text)}</div>
             </div>
           `).join('');
           $('chatBox').scrollTop = $('chatBox').scrollHeight;
@@ -229,29 +243,33 @@
       }
 
       if (isResult) {
-        if (room.phase === 'final') {
-          $('resTitle').textContent = ko ? '🏁 최종 3라운드 누적 결과' : '🏁 Final 3-Round Standings';
+        if (g.phase === 'final') {
+          $('resTitle').textContent = ko ? `🏁 ${g.groupId}조 최종 3라운드 순위 (A~H)` : `🏁 Group ${g.groupId} Final Standings (A–H)`;
           const totals = Array.from({ length: 8 }, (_, i) => {
-            const sum = room.roundsHistory.reduce((acc, r) => acc + (r.details[i]?.finalC || 0), 0);
-            return { teamId: i + 1, sum };
-          }).sort((a, b) => b.sum - a.sum);
-          $('resSub').textContent = ko ? `우승: ${totals[0].teamId}조 (${totals[0].sum.toFixed(1)} Cᵢ)` : `Winner: Team ${totals[0].teamId} (${totals[0].sum.toFixed(1)} Cᵢ)`;
+            const played = g.roundsHistory.some((r) => !r.details[i]?.absent);
+            const sum = g.roundsHistory.reduce((acc, r) => acc + (r.details[i]?.finalC || 0), 0);
+            const seat = g.seats[i];
+            return { govId: i + 1, name: seat?.name, played, sum };
+          }).filter((x) => x.played).sort((a, b) => b.sum - a.sum);
+          $('resSub').textContent = totals.length
+            ? (ko ? `우승: 정부 ${govCode(totals[0].govId)} (${totals[0].sum.toFixed(1)} Cᵢ)` : `Winner: Gov ${govCode(totals[0].govId)} (${totals[0].sum.toFixed(1)} Cᵢ)`)
+            : '';
           $('resBody').innerHTML = totals.map((t, idx) => `
-            <div class="flex justify-between p-2.5 rounded-xl border ${t.teamId === myInfo.teamId ? 'border-blue-500 bg-blue-50 font-extrabold' : 'border-stone-200'}">
-              <span>#${idx + 1} ${ko ? `${t.teamId}조` : `Team ${t.teamId}`}</span>
+            <div class="flex justify-between p-2.5 rounded-xl border ${t.govId === myInfo.govId ? 'border-blue-500 bg-blue-50 font-extrabold' : 'border-stone-200'}">
+              <span>#${idx + 1} ${ko ? `정부 ${govCode(t.govId)}` : `Gov ${govCode(t.govId)}`} ${t.name ? `(${esc(t.name)})` : ''}</span>
               <span class="font-mono text-blue-700">${t.sum.toFixed(1)} Cᵢ</span>
             </div>
           `).join('');
         } else {
-          const latest = room.roundsHistory[room.roundsHistory.length - 1];
+          const latest = g.roundsHistory[g.roundsHistory.length - 1];
           if (!latest) return;
-          const myRes = latest.details[myInfo.teamId - 1];
-          $('resTitle').textContent = ko ? `라운드 ${latest.round} 결과: ${latest.stage.ko}` : `Round ${latest.round}: ${latest.stage.en}`;
-          $('resSub').textContent = `W_total = ${latest.wTotal} · α=${Math.round(latest.stage.alpha*100)}% / β=${Math.round(latest.stage.beta*100)}% / γ=${Math.round(latest.stage.gamma*100)}%`;
+          const myRes = latest.details[myInfo.govId - 1];
+          $('resTitle').textContent = ko ? `${g.groupId}조 라운드 ${latest.round}: ${latest.stage.ko}` : `Group ${g.groupId} Round ${latest.round}: ${latest.stage.en}`;
+          $('resSub').textContent = `W_total = ${latest.wTotal} (${latest.activeCount}${ko ? '명 참여' : ' active'}) · α=${Math.round(latest.stage.alpha*100)}% / β=${Math.round(latest.stage.beta*100)}% / γ=${Math.round(latest.stage.gamma*100)}%`;
           $('resBody').innerHTML = myRes.absent
-            ? `<div class="p-4 rounded-xl bg-stone-100 border border-stone-200 text-center text-stone-500 font-bold">${ko ? '이번 라운드에 제출하지 않아 미참여(빈 조)로 처리되었습니다.' : 'No submission recorded for your team this round (Absent).'}</div>`
+            ? `<div class="p-4 rounded-xl bg-stone-100 border border-stone-200 text-center text-stone-500 font-bold">${ko ? '이번 라운드 미제출(빈 자리)로 처리되었습니다.' : 'No submission recorded this round (Absent).'}</div>`
             : `<div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-center">
-                 <div class="text-xs font-bold text-blue-800">${ko ? '우리 조 최종 소비재 점수 (Final Cᵢ)' : 'Your Team Final Score (Cᵢ)'}</div>
+                 <div class="text-xs font-bold text-blue-800">${ko ? `정부 ${govCode(myInfo.govId)} 최종 소비재 점수 (Final Cᵢ)` : `Gov ${govCode(myInfo.govId)} Final Goods (Cᵢ)`}</div>
                  <div class="text-3xl font-extrabold font-mono text-blue-700 mt-1">${myRes.finalC.toFixed(1)}</div>
                  <div class="text-xs text-stone-600 mt-1">W=${myRes.w}, K=${myRes.k} · ${ko ? '보존' : 'Retained'} ${myRes.retained} + ${ko ? '재분배' : 'Redistributed'} ${myRes.redistributed}</div>
                </div>`;
@@ -266,48 +284,40 @@
     $('inW').addEventListener('input', (e) => syncW(e.target.value));
 
     $('btnJoin').addEventListener('click', () => {
-      const roomId = $('inRoom').value.trim().toUpperCase();
       const name = $('inName').value.trim();
       const studentId = $('inSid').value.trim();
-      const teamId = $('inTeam').value;
-      if (!name || !studentId || !roomId) {
-        $('errEntry').textContent = lang === 'ko' ? '방 코드, 이름, 학번을 모두 입력해 주세요.' : 'Please enter Room Code, Name, and Student ID.';
+      const govId = $('inGov').value;
+      if (!name || !studentId) {
+        $('errEntry').textContent = lang === 'ko' ? '이름과 학번을 모두 입력해 주세요.' : 'Please enter both Name and Student ID.';
         $('errEntry').classList.remove('hidden');
         return;
       }
       $('errEntry').classList.add('hidden');
-      myInfo.roomId = roomId; myInfo.name = name; myInfo.studentId = studentId;
-      socket.emit('player:join', { roomId, name, studentId, teamId, lang });
+      myInfo.name = name; myInfo.studentId = studentId;
+      socket.emit('player:join', { name, studentId, groupId: selectedGroupId, govId, lang });
     });
 
-    $('btnSubmitW').addEventListener('click', () => {
-      socket.emit('player:submit', { roomId: myInfo.roomId, w: Number($('inW').value) });
-    });
-
+    $('btnSubmitW').addEventListener('click', () => socket.emit('player:submit', { w: Number($('inW').value) }));
     $('btnChatSend').addEventListener('click', () => {
       const text = $('inChat').value.trim();
       if (!text) return;
       $('inChat').value = '';
-      socket.emit('player:chat', { roomId: myInfo.roomId, text });
+      socket.emit('player:chat', { text });
     });
     $('inChat').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('btnChatSend').click(); });
 
-    socket.on('player:error', ({ message }) => {
-      $('errEntry').textContent = message;
-      $('errEntry').classList.remove('hidden');
-    });
-
-    socket.on('player:joined', ({ roomId, teamId, isLeader }) => {
-      myInfo.roomId = roomId; myInfo.teamId = teamId; myInfo.isLeader = isLeader;
+    socket.on('player:error', ({ message }) => { $('errEntry').textContent = message; $('errEntry').classList.remove('hidden'); });
+    socket.on('player:joined', ({ groupId, govId }) => {
+      myInfo.groupId = groupId; myInfo.govId = govId;
       $('secEntry').classList.add('hidden');
       $('secLive').classList.remove('hidden');
       $('myBadge').classList.remove('hidden');
-      $('myBadge').textContent = `${lang === 'ko' ? `${teamId}조` : `Team ${teamId}`} · ${myInfo.name} (${myInfo.studentId})`;
+      $('myBadge').textContent = lang === 'ko' ? `${groupId}조 · ${govCode(govId)} (${myInfo.name})` : `G${groupId} · Gov ${govCode(govId)} (${myInfo.name})`;
     });
+    socket.on('group:state', renderGroupState);
 
-    socket.on('room:state', renderRoom);
-
-    populateTeamSelect();
+    renderGroupButtons();
+    populateGovSelect();
     syncW(20);
   </script>
 </body>
