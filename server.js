@@ -323,6 +323,21 @@ io.on('connection', (socket) => {
     broadcastRoom(room);
   });
 
+  socket.on('host:resetRoom', ({ roomId }) => {
+    const room = rooms.get(String(roomId || '').toUpperCase());
+    if (!room) return;
+    room.phase = 'lobby';
+    room.currentRound = 0;
+    room.timerEndAt = null;
+    room.roundsHistory = [];
+    room.chat = [];
+    room.teams.forEach((t) => {
+      t.currentSubmission = null;
+      t.r3Pledge = null;
+    });
+    broadcastRoom(room);
+  });
+
   socket.on('host:showFinal', ({ roomId }) => {
     const room = rooms.get(String(roomId || '').toUpperCase());
     if (!room) return;

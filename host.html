@@ -23,6 +23,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <span id="roomBadge" class="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 font-mono font-extrabold text-sm text-blue-800">ROOM: TEAM06</span>
         <button id="btnNewRoom" type="button" class="px-3.5 py-2 rounded-xl bg-white border border-stone-300 hover:bg-stone-50 text-xs font-bold">+ 새 방 만들기</button>
+        <button id="btnResetRoom" type="button" class="px-3.5 py-2 rounded-xl bg-rose-50 border border-rose-300 hover:bg-rose-100 text-rose-700 text-xs font-bold">🔄 현재 방 초기화</button>
         <a id="btnExportCsv" href="/api/rooms/TEAM06/export.csv" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">📥 CSV 결과 다운로드</a>
       </div>
     </header>
@@ -139,6 +140,11 @@
     $('btnStart3').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 3 }));
     $('btnSettle').addEventListener('click', () => socket.emit('host:settleRound', { roomId: currentRoomId }));
     $('btnFinal').addEventListener('click', () => socket.emit('host:showFinal', { roomId: currentRoomId }));
+    $('btnResetRoom').addEventListener('click', () => {
+      if (confirm(`정말 [${currentRoomId}] 방의 모든 라운드 기록과 제출 내용을 초기화할까요?`)) {
+        socket.emit('host:resetRoom', { roomId: currentRoomId });
+      }
+    });
     $('btnRefreshHistory').addEventListener('click', loadHistory);
 
     connectRoom('TEAM06');
