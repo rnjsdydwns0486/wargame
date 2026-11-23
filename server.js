@@ -14,7 +14,7 @@ const HISTORY_FILE = path.join(DATA_DIR, 'sessions.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 app.use(express.json());
-const PUBLIC_DIR = fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))
+const PUBLIC_DIR = fs.existsSync(path.join(__dirname, 'public', 'index.html'))
   ? path.join(__dirname, 'public')
   : __dirname;
 app.use(express.static(PUBLIC_DIR));
@@ -160,6 +160,7 @@ function broadcastRoom(room) {
 }
 
 // ==================== REST ENDPOINTS ====================
+app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 app.get('/host', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'host.html')));
 app.get('/r/:roomId', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
