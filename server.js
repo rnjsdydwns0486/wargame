@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
 const path = require('path');
+const ExcelJS = require('exceljs');
 
 const app = express();
 const server = http.createServer(app);
@@ -343,6 +344,214 @@ app.get('/api/export.csv', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="war_game_results_kr.csv"');
   res.send(csv);
+});
+
+app.get('/api/export.xlsx', async (req, res) => {
+  try {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = '게임이론 6조 War Game';
+    wb.created = new Date();
+
+    const stageKo = (st) => (st && st.ko ? st.ko.split(' (')[0] : '미참여');
+    const stageFill = (id) => {
+      if (id === 'peace') return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+      if (id === 'conflict') return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      if (id === 'small_war') return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+      if (id === 'world_war') return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+      return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+    };
+
+    const headerStyle = (row) => {
+      row.height = 26;
+      row.eachCell((cell) => {
+        cell.font = { name: '맑은 고딕', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'medium', color: { argb: 'FF1E3A8A' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+      });
+    };
+
+    const bodyBorder = {
+      top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+    };
+
+    // ==================== 시트 1: 7조 종합 요약 ====================
+    const ws1 = wb.addWorksheet('1. 7조 종합 요약', { views: [{ state: 'frozen', ySplit: 3 }] });
+    ws1.mergeCells('A1:M1');
+    const title1 = ws1.getCell('A1');
+    title1.value = '⚔️ 게임이론 6조 전쟁 게임(War Game) — 7개 조(표본) 라운드별 종합 요약';
+    title1.font = { name: '맑은 고딕', size: 14, bold: true, color: { argb: 'FF0F172A' } };
+    title1.alignment = { vertical: 'middle', horizontal: 'left' };
+    ws1.getRow(1).height = 30;
+
+    ws1.mergeCells('A2:M2');
+    const sub1 = ws1.getCell('A2');
+    sub1.value = `추출 시각: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}  |  구조: 7개 조 × A~H (빈 자리는 미참여 처리)`;
+    sub1.font = { name: '맑은 고딕', size: 9, color: { argb: 'FF64748B' } };
+    ws1.getRow(2).height = 20;
+
+    const h1 = ws1.addRow([
+      '조', '라운드', '참여 인원', '무기 합계(W_total)', '평균 무기(W)',
+      '전세 단계', '보존율(α)', '재분배율(β)', '손실률(γ)',
+      '초기 소비재(C_total)', '최종 소비재 합계', '전쟁 손실(γ)', '평화 대비 효율(%)'
+    ]);
+    headerStyle(h1);
+    ws1.columns = [
+      { width: 9 }, { width: 11 }, { width: 11 }, { width: 17 }, { width: 13 },
+      { width: 20 }, { width: 11 }, { width: 11 }, { width: 11 },
+      { width: 17 }, { width: 16 }, { width: 15 }, { width: 16 }
+    ];
+
+    session.groups.forEach((g) => {
+      g.roundsHistory.slice().sort((a, b) => a.round - b.round).forEach((r) => {
+        const avgW = r.activeCount > 0 ? Number((r.wTotal / r.activeCount).toFixed(1)) : null;
+        const peaceMax = r.activeCount * 1000;
+        const eff = peaceMax > 0 ? Number(((r.totalFinalC / peaceMax) * 100).toFixed(1)) : null;
+        const row = ws1.addRow([
+          `${g.groupId}조`, `${r.round}라운드`, r.activeCount, r.wTotal, avgW,
+          r.activeCount > 0 ? stageKo(r.stage) : '미참여',
+          `${Math.round(r.stage.alpha * 100)}%`,
+          `${Math.round(r.stage.beta * 100)}%`,
+          `${Math.round(r.stage.gamma * 100)}%`,
+          r.cTotal, Number(r.totalFinalC.toFixed(1)), Number(r.socialLoss.toFixed(1)),
+          eff !== null ? `${eff}%` : '-'
+        ]);
+        row.height = 22;
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: '맑은 고딕', size: 10, bold: colNum === 1 || colNum === 6 };
+          cell.alignment = { vertical: 'middle', horizontal: colNum <= 3 || colNum === 6 || (colNum >= 7 && colNum <= 9) || colNum === 13 ? 'center' : 'right' };
+          cell.border = bodyBorder;
+          if (colNum === 6) cell.fill = stageFill(r.activeCount > 0 ? r.stage.id : 'none');
+        });
+      });
+    });
+
+    // ==================== 시트 2: 조별 개인 순위 ====================
+    const ws2 = wb.addWorksheet('2. 조별 개인 순위', { views: [{ state: 'frozen', ySplit: 2 }] });
+    ws2.mergeCells('A1:M1');
+    const title2 = ws2.getCell('A1');
+    title2.value = '🏆 조별 개인 누적 순위 및 라운드별 전략 변화 (이름 · 학번 포함)';
+    title2.font = { name: '맑은 고딕', size: 13, bold: true, color: { argb: 'FF0F172A' } };
+    ws2.getRow(1).height = 28;
+
+    const h2 = ws2.addRow([
+      '조', '순위', '정부', '이름', '학번',
+      '1R 무기', '1R 점수', '2R 무기', '2R 점수', '3R 무기', '3R 점수',
+      '3R 누적 점수(Cᵢ)', '평균 무기(W)'
+    ]);
+    headerStyle(h2);
+    ws2.columns = [
+      { width: 9 }, { width: 9 }, { width: 10 }, { width: 14 }, { width: 14 },
+      { width: 10 }, { width: 11 }, { width: 10 }, { width: 11 }, { width: 10 }, { width: 11 },
+      { width: 16 }, { width: 13 }
+    ];
+
+    session.groups.forEach((g) => {
+      const r1 = g.roundsHistory.find((x) => x.round === 1);
+      const r2 = g.roundsHistory.find((x) => x.round === 2);
+      const r3 = g.roundsHistory.find((x) => x.round === 3);
+
+      const players = g.seats.map((seat, idx) => {
+        const d1 = r1?.details[idx], d2 = r2?.details[idx], d3 = r3?.details[idx];
+        const activeDs = [d1, d2, d3].filter((d) => d && !d.absent);
+        const totalC = activeDs.reduce((acc, d) => acc + d.finalC, 0);
+        const avgW = activeDs.length > 0 ? Number((activeDs.reduce((acc, d) => acc + d.w, 0) / activeDs.length).toFixed(1)) : null;
+        const name = seat.name || seat.lastName || d3?.name || d2?.name || d1?.name || '';
+        const sid = seat.studentId || seat.lastStudentId || d3?.studentId || d2?.studentId || d1?.studentId || '';
+        return { gov: GOV_CODES[idx], name, sid, d1, d2, d3, played: activeDs.length > 0, totalC, avgW };
+      });
+
+      const ranked = players.filter((p) => p.played).sort((a, b) => b.totalC - a.totalC);
+      ranked.forEach((p, rIdx) => {
+        const row = ws2.addRow([
+          `${g.groupId}조`, `${rIdx + 1}위`, `정부 ${p.gov}`, p.name, p.sid,
+          p.d1 && !p.d1.absent ? p.d1.w : '-', p.d1 && !p.d1.absent ? Number(p.d1.finalC.toFixed(1)) : '-',
+          p.d2 && !p.d2.absent ? p.d2.w : '-', p.d2 && !p.d2.absent ? Number(p.d2.finalC.toFixed(1)) : '-',
+          p.d3 && !p.d3.absent ? p.d3.w : '-', p.d3 && !p.d3.absent ? Number(p.d3.finalC.toFixed(1)) : '-',
+          Number(p.totalC.toFixed(1)), p.avgW
+        ]);
+        row.height = 21;
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: '맑은 고딕', size: 10, bold: rIdx === 0 || colNum === 12 };
+          cell.alignment = { vertical: 'middle', horizontal: colNum <= 5 ? 'center' : 'right' };
+          cell.border = bodyBorder;
+          if (rIdx === 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF9C3' } };
+        });
+      });
+    });
+
+    // ==================== 시트 3: 전체 원시 데이터 ====================
+    const ws3 = wb.addWorksheet('3. 전체 원시 데이터', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const h3 = ws3.addRow([
+      '조', '라운드', '정부', '참여 여부', '이름', '학번',
+      '무기(Wᵢ)', '소비재 투입(Kᵢ)', '초기 소비재(Cᵢ)', '자국 보존(α·Cᵢ)', '재분배 획득(β)',
+      '최종 점수(Final Cᵢ)', '전세 단계', '조 무기 합계(W_total)'
+    ]);
+    headerStyle(h3);
+    ws3.columns = [
+      { width: 9 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 13 }, { width: 14 },
+      { width: 11 }, { width: 14 }, { width: 14 }, { width: 15 }, { width: 14 },
+      { width: 16 }, { width: 18 }, { width: 17 }
+    ];
+
+    session.groups.forEach((g) => {
+      g.roundsHistory.slice().sort((a, b) => a.round - b.round).forEach((r) => {
+        r.details.forEach((d, idx) => {
+          const seat = g.seats[idx];
+          const name = d.name || seat?.name || seat?.lastName || '';
+          const sid = d.studentId || seat?.studentId || seat?.lastStudentId || '';
+          const row = ws3.addRow([
+            `${g.groupId}조`, `${r.round}라운드`, `정부 ${GOV_CODES[idx]}`, d.absent ? '미참여' : '참여',
+            name, sid,
+            d.absent ? '' : d.w, d.absent ? '' : d.k, d.absent ? '' : d.initC,
+            d.absent ? '' : Number(d.retained.toFixed(1)), d.absent ? '' : Number(d.redistributed.toFixed(1)),
+            d.absent ? '' : Number(d.finalC.toFixed(1)), stageKo(r.stage), r.wTotal
+          ]);
+          row.height = 20;
+          row.eachCell((cell, colNum) => {
+            cell.font = { name: '맑은 고딕', size: 9.5, color: { argb: d.absent ? 'FF94A3B8' : 'FF1E293B' } };
+            cell.alignment = { vertical: 'middle', horizontal: colNum <= 6 || colNum === 13 ? 'center' : 'right' };
+            cell.border = bodyBorder;
+          });
+        });
+      });
+    });
+
+    // ==================== 시트 4: 3R 협상 채팅 ====================
+    const ws4 = wb.addWorksheet('4. 3R 협상 채팅', { views: [{ state: 'frozen', ySplit: 1 }] });
+    const h4 = ws4.addRow(['조', '시각', '정부', '이름', '협상 메시지']);
+    headerStyle(h4);
+    ws4.columns = [{ width: 9 }, { width: 14 }, { width: 10 }, { width: 14 }, { width: 65 }];
+
+    session.groups.forEach((g) => {
+      g.chat.forEach((m) => {
+        const tStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
+        const row = ws4.addRow([`${g.groupId}조`, tStr, `정부 ${GOV_CODES[m.govId - 1]}`, m.name || '', m.text || '']);
+        row.height = 21;
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: '맑은 고딕', size: 10 };
+          cell.alignment = { vertical: 'middle', horizontal: colNum === 5 ? 'left' : 'center', wrapText: true };
+          cell.border = bodyBorder;
+        });
+      });
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="war_game_report.xlsx"');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('XLSX export error:', err);
+    res.status(500).send('Failed to generate Excel report');
+  }
 });
 
 // ==================== SOCKET.IO EVENTS ====================
