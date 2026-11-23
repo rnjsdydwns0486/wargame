@@ -188,35 +188,160 @@ app.get('/api/groups/summary', (req, res) => {
 });
 
 app.get('/api/export.csv', (req, res) => {
-  const rows = [
-    ['Group_No', 'Round', 'Gov_Code', 'Status', 'Name', 'StudentID', 'Weapons_W', 'GoodsInput_K', 'Init_C', 'WarStage', 'Group_W_total', 'Group_Active_Count', 'Final_C']
-  ];
+  const escCsv = (v) => {
+    const str = v === null || v === undefined ? '' : String(v);
+    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  const pushRow = (arr) => rows.push(arr.map(escCsv).join(','));
+  const stageKo = (st) => (st && st.ko ? st.ko.split(' (')[0] : '');
+
+  const rows = [];
+  const nowStr = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+
+  pushRow(['[게임이론 6조] 전쟁 게임(War Game) 전체 결과 보고서', `추출 시각: ${nowStr}`]);
+  pushRow([]);
+
+  // 1. 7개 조(표본) 라운드별 요약
+  pushRow(['1. 7개 조(표본) 라운드별 종합 요약']);
+  pushRow([
+    '조', '라운드', '참여 인원(명)', '전체 무기 합계(W_total)', '평균 무기(W)',
+    '전세 단계', '자국 보존율(α)', '재분배율(β)', '전쟁 손실률(γ)',
+    '초기 소비재 합계(C_total)', '최종 소비재 합계', '전쟁 손실(파괴된 소비재)', '완전 평화 대비 효율(%)'
+  ]);
   session.groups.forEach((g) => {
-    g.roundsHistory.forEach((r) => {
-      r.details.forEach((d) => {
-        const seat = g.seats[d.govId - 1];
-        rows.push([
-          g.groupId,
-          r.round,
-          GOV_CODES[d.govId - 1],
-          d.absent ? 'ABSENT' : 'ACTIVE',
-          (d.name || seat?.name || seat?.lastName) ? `"${String(d.name || seat?.name || seat?.lastName).replace(/"/g, '""')}"` : '',
-          (d.studentId || seat?.studentId || seat?.lastStudentId) ? `"${String(d.studentId || seat?.studentId || seat?.lastStudentId).replace(/"/g, '""')}"` : '',
-          d.absent ? '' : d.w,
-          d.absent ? '' : d.k,
-          d.absent ? '' : d.initC,
-          r.stage.id,
-          r.wTotal,
+    g.roundsHistory
+      .slice()
+      .sort((a, b) => a.round - b.round)
+      .forEach((r) => {
+        const avgW = r.activeCount > 0 ? (r.wTotal / r.activeCount).toFixed(1) : '';
+        const peaceMax = r.activeCount * 1000;
+        const eff = peaceMax > 0 ? ((r.totalFinalC / peaceMax) * 100).toFixed(1) + '%' : '';
+        pushRow([
+          `${g.groupId}조`,
+          `${r.round}라운드`,
           r.activeCount,
-          d.absent ? '' : d.finalC
+          r.wTotal,
+          avgW,
+          r.activeCount > 0 ? stageKo(r.stage) : '미참여',
+          `${Math.round(r.stage.alpha * 100)}%`,
+          `${Math.round(r.stage.beta * 100)}%`,
+          `${Math.round(r.stage.gamma * 100)}%`,
+          r.cTotal,
+          r.totalFinalC.toFixed(1),
+          r.socialLoss.toFixed(1),
+          eff
         ]);
       });
+  });
+
+  pushRow([]);
+  pushRow(['2. 조별 개인 누적 순위 및 라운드별 변화 (1~7조 · A~H)']);
+  pushRow([
+    '조', '조 내 순위', '정부', '이름', '학번',
+    '1R 무기(W)', '1R 점수(Cᵢ)', '2R 무기(W)', '2R 점수(Cᵢ)', '3R 무기(W)', '3R 점수(Cᵢ)',
+    '3라운드 누적 점수(Cᵢ)', '개인 평균 무기(W)'
+  ]);
+  session.groups.forEach((g) => {
+    const r1 = g.roundsHistory.find((x) => x.round === 1);
+    const r2 = g.roundsHistory.find((x) => x.round === 2);
+    const r3 = g.roundsHistory.find((x) => x.round === 3);
+
+    const players = g.seats.map((seat, idx) => {
+      const d1 = r1?.details[idx];
+      const d2 = r2?.details[idx];
+      const d3 = r3?.details[idx];
+      const activeDs = [d1, d2, d3].filter((d) => d && !d.absent);
+      const totalC = activeDs.reduce((acc, d) => acc + d.finalC, 0);
+      const avgW = activeDs.length > 0 ? (activeDs.reduce((acc, d) => acc + d.w, 0) / activeDs.length).toFixed(1) : '';
+      const name = seat.name || seat.lastName || d3?.name || d2?.name || d1?.name || '';
+      const sid = seat.studentId || seat.lastStudentId || d3?.studentId || d2?.studentId || d1?.studentId || '';
+      return {
+        gov: GOV_CODES[idx],
+        name,
+        sid,
+        d1, d2, d3,
+        played: activeDs.length > 0,
+        totalC,
+        avgW
+      };
+    });
+
+    const ranked = players.filter((p) => p.played).sort((a, b) => b.totalC - a.totalC);
+    const unplayed = players.filter((p) => !p.played);
+
+    ranked.forEach((p, rIdx) => {
+      pushRow([
+        `${g.groupId}조`,
+        `${rIdx + 1}위`,
+        `정부 ${p.gov}`,
+        p.name,
+        p.sid,
+        p.d1 && !p.d1.absent ? p.d1.w : '',
+        p.d1 && !p.d1.absent ? p.d1.finalC.toFixed(1) : '',
+        p.d2 && !p.d2.absent ? p.d2.w : '',
+        p.d2 && !p.d2.absent ? p.d2.finalC.toFixed(1) : '',
+        p.d3 && !p.d3.absent ? p.d3.w : '',
+        p.d3 && !p.d3.absent ? p.d3.finalC.toFixed(1) : '',
+        p.totalC.toFixed(1),
+        p.avgW
+      ]);
+    });
+    unplayed.forEach((p) => {
+      if (p.name || p.sid) {
+        pushRow([`${g.groupId}조`, '미제출', `정부 ${p.gov}`, p.name, p.sid, '', '', '', '', '', '', '', '']);
+      }
     });
   });
 
-  const csv = '\uFEFF' + rows.map((row) => row.join(',')).join('\n');
+  pushRow([]);
+  pushRow(['3. 전체 상세 정산 원시 데이터 (통계 분석용)']);
+  pushRow([
+    '조', '라운드', '정부', '참여 여부', '이름', '학번',
+    '무기(Wᵢ)', '소비재 투입(Kᵢ)', '초기 소비재(Cᵢ)', '자국 보존(α·Cᵢ)', '재분배 획득(β 몫)',
+    '최종 소비재 점수(Final Cᵢ)', '전세 단계', '조 무기 합계(W_total)'
+  ]);
+  session.groups.forEach((g) => {
+    g.roundsHistory
+      .slice()
+      .sort((a, b) => a.round - b.round)
+      .forEach((r) => {
+        r.details.forEach((d, idx) => {
+          const seat = g.seats[idx];
+          const name = d.name || seat?.name || seat?.lastName || '';
+          const sid = d.studentId || seat?.studentId || seat?.lastStudentId || '';
+          pushRow([
+            `${g.groupId}조`,
+            `${r.round}라운드`,
+            `정부 ${GOV_CODES[idx]}`,
+            d.absent ? '미참여' : '참여',
+            name,
+            sid,
+            d.absent ? '' : d.w,
+            d.absent ? '' : d.k,
+            d.absent ? '' : d.initC,
+            d.absent ? '' : d.retained.toFixed(1),
+            d.absent ? '' : d.redistributed.toFixed(1),
+            d.absent ? '' : d.finalC.toFixed(1),
+            stageKo(r.stage),
+            r.wTotal
+          ]);
+        });
+      });
+  });
+
+  pushRow([]);
+  pushRow(['4. 3라운드 조별 자유 토의 채팅 기록']);
+  pushRow(['조', '시각', '정부', '이름', '협상 메시지']);
+  session.groups.forEach((g) => {
+    g.chat.forEach((m) => {
+      const tStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul' }) : '';
+      pushRow([`${g.groupId}조`, tStr, `정부 ${GOV_CODES[m.govId - 1]}`, m.name || '', m.text || '']);
+    });
+  });
+
+  const csv = '\uFEFF' + rows.join('\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="war_game_7groups_results.csv"');
+  res.setHeader('Content-Disposition', 'attachment; filename="war_game_results_kr.csv"');
   res.send(csv);
 });
 
