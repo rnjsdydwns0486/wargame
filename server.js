@@ -14,7 +14,10 @@ const HISTORY_FILE = path.join(DATA_DIR, 'sessions.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+const PUBLIC_DIR = fs.existsSync(path.join(PUBLIC_DIR, 'index.html'))
+  ? path.join(__dirname, 'public')
+  : __dirname;
+app.use(express.static(PUBLIC_DIR));
 
 // ==================== GAME CONSTANTS ====================
 const NUM_TEAMS = 8;
@@ -157,8 +160,8 @@ function broadcastRoom(room) {
 }
 
 // ==================== REST ENDPOINTS ====================
-app.get('/host', (req, res) => res.sendFile(path.join(__dirname, 'public', 'host.html')));
-app.get('/r/:roomId', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/host', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'host.html')));
+app.get('/r/:roomId', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
 app.post('/api/rooms', (req, res) => {
   const room = createRoom();
