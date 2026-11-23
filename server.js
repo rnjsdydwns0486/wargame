@@ -85,6 +85,8 @@ function createFreshSession() {
         socketId: null,
         name: null,
         studentId: null,
+        lastName: null,
+        lastStudentId: null,
         lang: 'ko',
         currentSubmission: null
       })),
@@ -133,8 +135,8 @@ function getHostState() {
       seats: g.seats.map((s) => ({
         govId: s.govId,
         occupied: s.socketId !== null,
-        name: s.name,
-        studentId: s.studentId,
+        name: s.name || s.lastName,
+        studentId: s.studentId || s.lastStudentId,
         submitted: s.currentSubmission !== null
       })),
       roundsHistory: g.roundsHistory,
@@ -198,8 +200,8 @@ app.get('/api/export.csv', (req, res) => {
           r.round,
           GOV_CODES[d.govId - 1],
           d.absent ? 'ABSENT' : 'ACTIVE',
-          seat?.name ? `"${String(seat.name).replace(/"/g, '""')}"` : '',
-          seat?.studentId ? `"${String(seat.studentId).replace(/"/g, '""')}"` : '',
+          (d.name || seat?.name || seat?.lastName) ? `"${String(d.name || seat?.name || seat?.lastName).replace(/"/g, '""')}"` : '',
+          (d.studentId || seat?.studentId || seat?.lastStudentId) ? `"${String(d.studentId || seat?.studentId || seat?.lastStudentId).replace(/"/g, '""')}"` : '',
           d.absent ? '' : d.w,
           d.absent ? '' : d.k,
           d.absent ? '' : d.initC,
@@ -276,6 +278,8 @@ io.on('connection', (socket) => {
     chosenSeat.socketId = socket.id;
     chosenSeat.name = String(name || '').trim().slice(0, 20);
     chosenSeat.studentId = String(studentId || '').trim().slice(0, 20);
+    chosenSeat.lastName = chosenSeat.name;
+    chosenSeat.lastStudentId = chosenSeat.studentId;
     chosenSeat.lang = lang === 'en' ? 'en' : 'ko';
 
     socket.data = { groupId: gId, govId: chosenSeat.govId, name: chosenSeat.name, studentId: chosenSeat.studentId };
@@ -315,7 +319,10 @@ io.on('connection', (socket) => {
     session.phase = `round${r}`;
     session.timerEndAt = Date.now() + (r === 3 ? 180 : 90) * 1000;
     session.groups.forEach((g) => {
-      g.seats.forEach((s) => { s.currentSubmission = null; });
+      g.seats.forEach((s) => {
+        s.currentSubmission = null;
+        if (!s.socketId) { s.lastName = null; s.lastStudentId = null; }
+      });
     });
     broadcastAll();
   });
@@ -327,6 +334,11 @@ io.on('connection', (socket) => {
       const weapons = g.seats.map((s) => (s.currentSubmission !== null ? s.currentSubmission : null));
       const res = computeGroupPayoffs(weapons);
       res.round = session.currentRound;
+      res.details.forEach((d, idx) => {
+        const seat = g.seats[idx];
+        d.name = seat.name || seat.lastName || '';
+        d.studentId = seat.studentId || seat.lastStudentId || '';
+      });
       g.roundsHistory = g.roundsHistory.filter((x) => x.round !== session.currentRound);
       g.roundsHistory.push(res);
     });

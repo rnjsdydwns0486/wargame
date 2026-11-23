@@ -225,7 +225,7 @@
                 return `
                   <tr class="${s.occupied || any ? '' : 'text-stone-400'}">
                     <td class="py-2 px-2 font-extrabold">${govCode(s.govId)}</td>
-                    <td class="py-2 px-2">${s.occupied ? `${esc(s.name)} (${esc(s.studentId)})` : '빈 자리'}</td>
+                    <td class="py-2 px-2">${s.name ? `${esc(s.name)} (${esc(s.studentId)})${s.occupied ? '' : ' <span class="text-[10px] text-stone-400">(퇴장)</span>'}` : '빈 자리'}</td>
                     <td class="py-2 px-2 text-right font-mono">${fmtCell(r1, idx)}</td>
                     <td class="py-2 px-2 text-right font-mono">${fmtCell(r2, idx)}</td>
                     <td class="py-2 px-2 text-right font-mono">${fmtCell(r3, idx)}</td>
