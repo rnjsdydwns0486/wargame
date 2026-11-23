@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>War Game · 진행자(Host) 대시보드</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background: #FAF8F5; color: #1F2937; }
+    .card { background: #FFF; border: 1px solid #EAE5DC; border-radius: 1.25rem; box-shadow: 0 4px 18px rgba(0,0,0,0.04); }
+  </style>
+</head>
+<body class="min-h-screen p-4 sm:p-6">
+  <div class="max-w-5xl mx-auto space-y-5">
+    <!-- Top Host Header -->
+    <header class="card p-5 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-extrabold text-stone-900">⚔️ 전쟁 게임 진행자 대시보드 (Host)</h1>
+        <p class="text-xs text-stone-500 mt-0.5">참가자 접속 링크: <code id="joinUrl" class="px-2 py-0.5 bg-stone-100 rounded font-bold text-blue-700"></code></p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="roomBadge" class="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 font-mono font-extrabold text-sm text-blue-800">ROOM: TEAM06</span>
+        <button id="btnNewRoom" type="button" class="px-3.5 py-2 rounded-xl bg-white border border-stone-300 hover:bg-stone-50 text-xs font-bold">+ 새 방 만들기</button>
+        <a id="btnExportCsv" href="/api/rooms/TEAM06/export.csv" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">📥 CSV 결과 다운로드</a>
+      </div>
+    </header>
+
+    <!-- Round Controls -->
+    <section class="card p-5 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="font-extrabold text-sm text-stone-800">라운드 진행 제어</h2>
+        <span id="phaseBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900">대기 중 (lobby)</span>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="btnStart1" type="button" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">1라운드 시작 (토의 불가)</button>
+        <button id="btnStart2" type="button" class="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">2라운드 시작 (토의 불가)</button>
+        <button id="btnStart3" type="button" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold">3라운드 시작 (자유 토의)</button>
+        <button id="btnSettle" type="button" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold">🔒 현재 라운드 마감 및 정산</button>
+        <button id="btnFinal" type="button" class="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold">🏁 최종 순위 공개</button>
+      </div>
+    </section>
+
+    <!-- 8 Teams Live Status Grid -->
+    <section class="card p-5 space-y-3">
+      <h2 class="font-extrabold text-sm text-stone-800">8개 조 실시간 접속 및 제출 현황</h2>
+      <div id="teamsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+    </section>
+
+    <!-- Round Results Table -->
+    <section class="card p-5 space-y-3">
+      <h2 class="font-extrabold text-sm text-stone-800">라운드별 집계 결과</h2>
+      <div id="resultsSummary" class="space-y-3 text-xs text-stone-700">아직 정산된 라운드가 없습니다.</div>
+    </section>
+
+    <!-- Saved Past Sessions -->
+    <section class="card p-5 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="font-extrabold text-sm text-stone-800">📚 저장된 이전 게임 결과 (나중에 다시 보기)</h2>
+        <button id="btnRefreshHistory" type="button" class="text-xs font-bold text-blue-600 hover:underline">새로고침</button>
+      </div>
+      <div id="historyList" class="space-y-2 text-xs text-stone-600">불러오는 중...</div>
+    </section>
+  </div>
+
+  <script>
+    const socket = io();
+    let currentRoomId = 'TEAM06';
+    const $ = (id) => document.getElementById(id);
+
+    function connectRoom(roomId) {
+      currentRoomId = roomId.toUpperCase();
+      $('roomBadge').textContent = `ROOM: ${currentRoomId}`;
+      $('joinUrl').textContent = `${location.origin}/r/${currentRoomId}`;
+      $('btnExportCsv').href = `/api/rooms/${currentRoomId}/export.csv`;
+      socket.emit('host:join', { roomId: currentRoomId });
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/history');
+        const list = await res.json();
+        if (!list.length) {
+          $('historyList').textContent = '아직 완료되어 저장된 게임 기록이 없습니다.';
+          return;
+        }
+        $('historyList').innerHTML = list.map((h) => `
+          <div class="p-3 rounded-xl border border-stone-200 flex flex-wrap items-center justify-between gap-2 bg-stone-50">
+            <div>
+              <span class="font-mono font-extrabold text-stone-900">${h.roomId}</span>
+              <span class="text-stone-500 ml-2">${new Date(h.completedAt).toLocaleString('ko-KR')}</span>
+              <span class="ml-2 text-blue-700 font-bold">${h.roundsHistory.length}라운드 완료</span>
+            </div>
+            <a href="/api/rooms/${h.roomId}/export.csv" class="px-3 py-1 rounded-lg bg-white border border-stone-300 font-bold text-stone-700 hover:bg-stone-100">CSV 다운로드</a>
+          </div>
+        `).join('');
+      } catch (e) {
+        $('historyList').textContent = '기록을 불러오지 못했습니다.';
+      }
+    }
+
+    socket.on('room:state', (room) => {
+      $('phaseBadge').textContent = `상태: ${room.phase}`;
+      $('teamsGrid').innerHTML = room.teams.map((t) => `
+        <div class="p-3.5 rounded-xl border ${t.submitted ? 'border-emerald-400 bg-emerald-50/50' : 'border-stone-200 bg-stone-50'}">
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-sm">${t.teamId}조</span>
+            <span class="text-[11px] font-bold ${t.submitted ? 'text-emerald-700' : 'text-stone-400'}">${t.submitted ? '✅ 제출 완료' : '대기'}</span>
+          </div>
+          <div class="text-[11px] text-stone-600 mt-1.5 space-y-0.5">
+            ${t.members.length ? t.members.map(m => `<div>${m.isLeader ? '👑 ' : ''}${m.name} (${m.studentId})</div>`).join('') : '<div class="text-stone-400">접속자 없음</div>'}
+          </div>
+        </div>
+      `).join('');
+
+      if (room.roundsHistory.length) {
+        $('resultsSummary').innerHTML = room.roundsHistory.map((r) => `
+          <div class="p-3.5 rounded-xl border border-stone-200 bg-stone-50 space-y-2">
+            <div class="font-extrabold text-stone-900">Round ${r.round} · ${r.stage.ko} (W_total = ${r.wTotal}, 손실률 γ = ${Math.round(r.stage.gamma*100)}%)</div>
+            <div class="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-center font-mono">
+              ${r.details.map(d => d.absent ? `<div class="p-1.5 rounded bg-stone-100 border border-stone-200 text-stone-400"><div class="font-bold">${d.teamId}조</div><div>미참여</div></div>` : `<div class="p-1.5 rounded bg-white border border-stone-200"><div class="font-bold text-stone-500">${d.teamId}조</div><div class="text-rose-600">W:${d.w}</div><div class="text-blue-700 font-bold">${d.finalC.toFixed(0)}</div></div>`).join('')}
+            </div>
+          </div>
+        `).join('');
+      } else {
+        $('resultsSummary').textContent = '아직 정산된 라운드가 없습니다.';
+      }
+      loadHistory();
+    });
+
+    $('btnNewRoom').addEventListener('click', async () => {
+      const res = await fetch('/api/rooms', { method: 'POST' });
+      const data = await res.json();
+      connectRoom(data.roomId);
+    });
+    $('btnStart1').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 1 }));
+    $('btnStart2').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 2 }));
+    $('btnStart3').addEventListener('click', () => socket.emit('host:startRound', { roomId: currentRoomId, roundNum: 3 }));
+    $('btnSettle').addEventListener('click', () => socket.emit('host:settleRound', { roomId: currentRoomId }));
+    $('btnFinal').addEventListener('click', () => socket.emit('host:showFinal', { roomId: currentRoomId }));
+    $('btnRefreshHistory').addEventListener('click', loadHistory);
+
+    connectRoom('TEAM06');
+    loadHistory();
+  </script>
+</body>
+</html>

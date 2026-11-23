@@ -1,0 +1,16 @@
+{
+  "name": "war-game-multiplayer",
+  "version": "1.0.0",
+  "description": "Game Theory Team 6 War Game Simulation (8 Teams, 3 Rounds) Real-Time Multiplayer Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
